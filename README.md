@@ -17,6 +17,7 @@ client = Xrc::Client.new(
   muc_domain: "example.com",   # optional
 )
 
+# Auto join your rooms
 client.on_connect do
   client.discovering_rooms
 end
