@@ -14,7 +14,18 @@ client = Xrc::Client.new(
   hosts: [ "example.com" ],    # optional, automatically determined from JID in absence
   port: 5222,                  # optional, default: 5222
   room_jid: "bar@example.com", # optional, you can pass comma-separated multi room JIDs
+  muc_domain: "example.com",   # optional
 )
+
+client.on_connect do
+  client.discovering_rooms
+end
+
+client.on_discovered_rooms do |resp|
+  jids = resp.room_jids
+  client.join(jids)
+  puts "joined rooms!: #{jids}"
+end
 
 # Responds to "ping" and returns "pong".
 client.on_private_message do |message|

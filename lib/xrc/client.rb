@@ -25,6 +25,10 @@ module Xrc
       nil
     end
 
+    def on_connect(&block)
+      @on_connect_block = block
+    end
+
     # Registers a callback called when client received a new private message (a.k.a. 1vs1 message)
     # @yield Executes a given callback in the Client's context
     # @yieldparam element [Xrc::Message] Represents a given message
@@ -75,6 +79,10 @@ module Xrc
     #
     def on_event(&block)
       @on_event_block = block
+    end
+
+    def on_discovered_rooms(&block)
+      @on_discovered_rooms_block = block
     end
 
     # Registers a callback for invitation message
@@ -128,6 +136,14 @@ module Xrc
       end
     end
 
+    # See XEP-0045 http://xmpp.org/extensions/xep-0045.html#disco-rooms
+    def discovering_rooms
+      unless muc_domain
+        raise ArgumentError.new("Please specify :muc_domain #{muc_domain.inspect}")
+      end
+      post(Elements::DiscoItems.new(from: jid.to_s, to: muc_domain))
+    end
+
     private
 
     def on_event_block
@@ -150,6 +166,14 @@ module Xrc
       @on_invite_block ||= ->(element) {}
     end
 
+    def on_discovered_rooms_block
+      @on_discovered_rooms_block ||= ->(element) {}
+    end
+
+    def on_connect_block
+      @on_connect_block ||= ->(element) {}
+    end
+
     def on_received(element)
       on_event_block.call(element)
       case
@@ -165,6 +189,8 @@ module Xrc
         on_authentication_succeeded(element)
       when element.name == "failure" && element.namespace == Namespaces::SASL
         on_authentication_failed(element)
+      when element.name == 'iq'
+        on_iq_received(element)
       end
     end
 
@@ -186,6 +212,10 @@ module Xrc
 
     def port
       @options[:port] || DEFAULT_PORT
+    end
+
+    def muc_domain
+      @options[:muc_domain]
     end
 
     # @return [Array<Xrc::Jid>] An array of Room JIDs a client will log in
@@ -213,6 +243,13 @@ module Xrc
         on_subject_block.call(message)
       when Messages::Invite
         on_invite_block.call(message)
+      end
+    end
+
+    def on_iq_received(element)
+      case iq = IQBuilder.build(element)
+      when IQ::DiscoItems
+        on_discovered_rooms_block.call(iq)
       end
     end
 
@@ -272,6 +309,7 @@ module Xrc
     def on_connection_established
       join(room_jids)
       start_ping_thread
+      on_connect_block.call
     end
 
     def features
